@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">SafeWalk</string>
+    <string name="mapbox_access_token">pk.eyJ1IjoiZ3VzdGF2b2ZzYW50b3MiLCJhIjoiY2o5NWoybDEyMzFuNTMzbnI2NWhyYzB5NSJ9.IvkBABhiXQJ-hcx3NuN94w</string>
 </resources>
