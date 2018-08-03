@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-
+    <item
+        android:id="@+id/map_menu_sair"
+        android:title="@string/menu_sair"
+        android:icon="@drawable/ic_exit_to_app_black_24dp" />
+    <item
+        android:id="@+id/map_menu_nova_ocorrencia"
+        android:title="@string/menu_reportar_ocorrencia"
+        android:icon="@drawable/ic_new_releases_black_24dp" />
+    <item
+        android:id="@+id/map_menu_configuracoes"
+        android:title="@string/menu_configuracoes"
+        android:icon="@drawable/ic_settings_black_24dp" />
 </menu>
