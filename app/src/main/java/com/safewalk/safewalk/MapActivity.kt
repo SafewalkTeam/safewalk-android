@@ -93,30 +93,27 @@ class MapActivity : AppCompatActivity() {
     fun setupMap() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_COARSE_LOCATION)) {
-
-            } else {
                 ActivityCompat.requestPermissions(this, Array<String>(1){Manifest.permission.ACCESS_COARSE_LOCATION}, 12)
+            } else {
+                fusedLocationClient.lastLocation
+                        .addOnSuccessListener { location : Location? ->
+                            // Got last known location. In some rare situations this can be null.
+                            log.info("[MapActivity]" + "lat: ${location?.latitude} lon: ${location?.longitude}")
+                            setMyLatLon(location!!.latitude, location!!.longitude)
+                        }
             }
-        } else {
-            fusedLocationClient.lastLocation
-                    .addOnSuccessListener { location : Location? ->
-                        // Got last known location. In some rare situations this can be null.
-                        log.info("[MapActivity]" + "lat: ${location?.latitude} lon: ${location?.longitude}")
-                        setMyLatLon(location!!.latitude, location!!.longitude)
-                    }
         }
 
-        mapView.getMapAsync { mapboxMapView ->
-            log.info("[MapActivity]" + "getMapAsync")
+        doAsync {
+            // get data from server
+            val jsonString = URL("https://github.com/gustavofsantos/data_test/raw/master/map.geojson").readText(Charset.defaultCharset())
 
-            // center to actual location
-            mapboxMapView.cameraPosition = CameraPosition()
+            uiThread {
+                log.info("[MapActivity] jsonString: ${jsonString}")
 
-            doAsync {
-                // get data from server
-                val jsonString = URL("https://github.com/gustavofsantos/data_test/raw/master/map.geojson").readText(Charset.defaultCharset())
-                uiThread {
-                    log.info("jsonString: ${jsonString}")
+                mapView.getMapAsync { mapboxMapView ->
+                    log.info("[MapActivity]" + "getMapAsync")
+
                     // apply data to map
                     mapboxMapView.addSource(GeoJsonSource("ocorrencias", jsonString))
 
@@ -125,6 +122,8 @@ class MapActivity : AppCompatActivity() {
                 }
             }
         }
+
+
     }
 
     fun socorro() {
@@ -139,6 +138,13 @@ class MapActivity : AppCompatActivity() {
     fun setMyLatLon(lat: Double, lon: Double) {
         latitude = lat
         longitude = lon
+
+        log.info("[MapActivity] (setMyLatLon) with lat: ${lat} lon: ${lon}")
+
+        mapView.getMapAsync {mapBoxMap ->
+            // center map to user location
+            log.info("[MapActivity] (setMyLatLon) shoud set user location")
+        }
     }
 
     fun createHeatMap(mapboxMap: MapboxMap?) {
@@ -146,7 +152,7 @@ class MapActivity : AppCompatActivity() {
         try {
             log.info("[MapActivity]" + "Aplicando heatmap...")
             val heatLayer = HeatmapLayer("heatmap_ocorrencias", "ocorrencias")
-            heatLayer.maxZoom = 12f
+            heatLayer.maxZoom = 20f
             heatLayer.sourceLayer = "ocorrencias"
             heatLayer.setProperties(
                     heatmapColor(
@@ -158,28 +164,6 @@ class MapActivity : AppCompatActivity() {
                                     literal(0.6), rgb(253, 219, 199),
                                     literal(0.8), rgb(239, 138, 98),
                                     literal(1), rgb(178, 24, 43)
-                            )
-                    ),
-                    heatmapIntensity(
-                            interpolate(
-                                    linear(), zoom(),
-                                    stop(0, 1),
-                                    stop(9, 3)
-                            )
-                    ),
-                    heatmapRadius(
-                            interpolate(
-                                    linear(), zoom(),
-                                    stop(0, 2),
-                                    stop(9, 20)
-                            )
-                    ),
-
-                    heatmapOpacity(
-                            interpolate(
-                                    linear(), zoom(),
-                                    stop(7, 1),
-                                    stop(9, 0)
                             )
                     )
             )
