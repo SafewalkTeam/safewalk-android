@@ -89,7 +89,7 @@ class MapActivity : AppCompatActivity() {
         alertButton.onLongClick { callHelpWithVoiceMessage() }
 
         //
-        configButton.onClick { startActivity<SettingsActivity>() }
+        configButton.onClick { /* startActivity<SettingsActivity>() */ singOut() }
     }
 
     fun setupMap() {
@@ -97,17 +97,17 @@ class MapActivity : AppCompatActivity() {
             // apply data saved until get the new data
             val jsonString = getPreferences(Context.MODE_PRIVATE).getString("geoDataJson", "")
 
-            doAsync {
-                uiThread {
-                    mapView.getMapAsync { mapboxMapView ->
-                        // apply data to map
-                        mapboxMapView.addSource(GeoJsonSource(mapSourceId, jsonString))
-
-                        // create heat map
-                        createHeatMap(mapboxMapView)
-                    }
-                }
-            }
+//            doAsync {
+//                uiThread {
+//                    mapView.getMapAsync { mapboxMapView ->
+//                        // apply data to map
+//                        mapboxMapView.addSource(GeoJsonSource(mapSourceId, jsonString))
+//
+//                        // create heat map
+//                        createHeatMap(mapboxMapView)
+//                    }
+//                }
+//            }
         }
 
         // shoud check if user is online first
@@ -117,6 +117,10 @@ class MapActivity : AppCompatActivity() {
 
             uiThread {
                 mapView.getMapAsync { mapboxMapView ->
+                    if (mapboxMapView.sources.size > 0) {
+                        // remove cached source
+                        mapboxMapView.removeSource(mapSourceId)
+                    }
                     // apply data to map
                     mapboxMapView.addSource(GeoJsonSource(mapSourceId, jsonString))
 
@@ -133,14 +137,14 @@ class MapActivity : AppCompatActivity() {
     fun setupLocation() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_COARSE_LOCATION)) {
-                ActivityCompat.requestPermissions(this, Array<String>(1){Manifest.permission.ACCESS_COARSE_LOCATION}, 12)
-            } else {
-                fusedLocationClient.lastLocation
-                        .addOnSuccessListener { location : Location? ->
-                            // Got last known location. In some rare situations this can be null.
-                            setMyLatLon(location!!.latitude, location!!.longitude)
-                        }
+                ActivityCompat.requestPermissions(this, Array<String>(1) { Manifest.permission.ACCESS_COARSE_LOCATION }, 12)
             }
+        } else {
+            fusedLocationClient.lastLocation
+                    .addOnSuccessListener { location: Location? ->
+                        // Got last known location. In some rare situations this can be null.
+                        setMyLatLon(location!!.latitude, location!!.longitude)
+                    }
         }
     }
 
