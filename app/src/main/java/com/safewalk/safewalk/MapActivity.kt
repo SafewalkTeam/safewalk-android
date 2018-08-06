@@ -31,35 +31,21 @@ import android.location.Criteria
 import android.support.v4.app.ActivityCompat
 import com.mapbox.mapboxsdk.camera.CameraPosition
 import com.mapbox.mapboxsdk.geometry.LatLng
+import org.jetbrains.anko.sdk25.coroutines.onLongClick
+import java.io.File
 
 
 class MapActivity : AppCompatActivity() {
 
     // define o logger
     private val log = AnkoLogger<RegisterActivity>()
-
     private val user = FirebaseAuth.getInstance().currentUser
-    private lateinit var mapboxMap: MapboxMap
+    private val mapSourceId = "ocorrencias"
+    private val mapHeatLayerId = "heatmap_ocorrencias"
+
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var latitude: Double = 0.0
     private var longitude: Double = 0.0
-    private val locationListener: LocationListener = object : LocationListener {
-        override fun onLocationChanged(location: Location?) {
-            log.info("lat: ${location!!.latitude} lon: ${location!!.longitude}")
-        }
-
-        override fun onStatusChanged(p0: String?, p1: Int, p2: Bundle?) {
-
-        }
-
-        override fun onProviderEnabled(p0: String?) {
-
-        }
-
-        override fun onProviderDisabled(p0: String?) {
-
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,6 +57,7 @@ class MapActivity : AppCompatActivity() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         setupButtons()
+        setupLocation()
         setupMap()
     }
 
@@ -84,13 +71,52 @@ class MapActivity : AppCompatActivity() {
 
     fun setupButtons() {
         // Configura a função para executar quando o usuário pedir socorro
-        alertButton.onClick { socorro() }
+        alertButton.onClick { callHelp() }
+        alertButton.onLongClick { callHelpWithVoiceMessage() }
 
         //
         configButton.onClick { startActivity<SettingsActivity>() }
     }
 
     fun setupMap() {
+        if (hasGeoDataOffline()) {
+            // apply data saved until get the new data
+            val jsonString = getPreferences(Context.MODE_PRIVATE).getString("geoDataJson", "")
+
+            doAsync {
+                uiThread {
+                    mapView.getMapAsync { mapboxMapView ->
+                        // apply data to map
+                        mapboxMapView.addSource(GeoJsonSource(mapSourceId, jsonString))
+
+                        // create heat map
+                        createHeatMap(mapboxMapView)
+                    }
+                }
+            }
+        }
+
+        // shoud check if user is online first
+        doAsync {
+            // get data from server ex: https://safewalk.com/api/user=<user id>&city=<city name>
+            val jsonString = URL("https://github.com/gustavofsantos/data_test/raw/master/map.geojson").readText(Charset.defaultCharset())
+
+            uiThread {
+                mapView.getMapAsync { mapboxMapView ->
+                    // apply data to map
+                    mapboxMapView.addSource(GeoJsonSource(mapSourceId, jsonString))
+
+                    // create heat map
+                    createHeatMap(mapboxMapView)
+
+                    // save data
+                    saveGeoDataOffline(jsonString)
+                }
+            }
+        }
+    }
+
+    fun setupLocation() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_COARSE_LOCATION)) {
                 ActivityCompat.requestPermissions(this, Array<String>(1){Manifest.permission.ACCESS_COARSE_LOCATION}, 12)
@@ -98,39 +124,31 @@ class MapActivity : AppCompatActivity() {
                 fusedLocationClient.lastLocation
                         .addOnSuccessListener { location : Location? ->
                             // Got last known location. In some rare situations this can be null.
-                            log.info("[MapActivity]" + "lat: ${location?.latitude} lon: ${location?.longitude}")
                             setMyLatLon(location!!.latitude, location!!.longitude)
                         }
             }
         }
-
-        doAsync {
-            // get data from server
-            val jsonString = URL("https://github.com/gustavofsantos/data_test/raw/master/map.geojson").readText(Charset.defaultCharset())
-
-            uiThread {
-                log.info("[MapActivity] jsonString: ${jsonString}")
-
-                mapView.getMapAsync { mapboxMapView ->
-                    log.info("[MapActivity]" + "getMapAsync")
-
-                    // apply data to map
-                    mapboxMapView.addSource(GeoJsonSource("ocorrencias", jsonString))
-
-                    // create heat map
-                    createHeatMap(mapboxMapView)
-                }
-            }
-        }
-
-
     }
 
-    fun socorro() {
-        snackbar(findViewById(android.R.id.content) , "Ação de socorro")
+    fun hasGeoDataOffline(): Boolean {
+        return getPreferences(Context.MODE_PRIVATE).contains("geoDataJson")
     }
 
-    fun deslogar() {
+    fun saveGeoDataOffline(geoDataJson: String) {
+        getPreferences(Context.MODE_PRIVATE).edit()
+                .putString("geoDataJson", geoDataJson)
+                .apply()
+    }
+
+    fun callHelp() {
+        snackbar(findViewById(android.R.id.content), "Ação de socorro")
+    }
+
+    fun callHelpWithVoiceMessage() {
+        snackbar(findViewById(android.R.id.content), "Ação de socorro com voz")
+    }
+
+    fun singOut() {
         FirebaseAuth.getInstance().signOut()
         startActivity<LoginActivity>()
     }
@@ -148,12 +166,10 @@ class MapActivity : AppCompatActivity() {
     }
 
     fun createHeatMap(mapboxMap: MapboxMap?) {
-        log.info("[MapActivity]" + "createHeatMap")
         try {
-            log.info("[MapActivity]" + "Aplicando heatmap...")
-            val heatLayer = HeatmapLayer("heatmap_ocorrencias", "ocorrencias")
+            val heatLayer = HeatmapLayer(mapHeatLayerId, mapSourceId)
             heatLayer.maxZoom = 20f
-            heatLayer.sourceLayer = "ocorrencias"
+            heatLayer.sourceLayer = mapSourceId
             heatLayer.setProperties(
                     heatmapColor(
                             Expression.interpolate(
@@ -169,17 +185,17 @@ class MapActivity : AppCompatActivity() {
             )
 
             mapboxMap!!.addLayer(heatLayer)
-            log.info("[MapActivity]" + "heatmap aplicado")
         } catch (e: Exception) {
-            toast(e?.message.toString())
+            log.info("[MapActivity]: " + e.message.toString())
         }
     }
 
     override fun onStart() {
         super.onStart()
         mapView.onStart()
-        userNameText.text = user?.displayName?.toUpperCase()
 
+        // set user name label
+        userNameText.text = user?.displayName?.toUpperCase()
     }
 
     override fun onBackPressed() {
@@ -216,28 +232,4 @@ class MapActivity : AppCompatActivity() {
         super.onSaveInstanceState(outState)
         mapView.onSaveInstanceState(outState)
     }
-
-//    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-//        menuInflater.inflate(R.menu.map_menu, menu)
-//        return true;
-//    }
-
-//    override fun onOptionsItemSelected(item: MenuItem?): Boolean =
-//        when (item!!.itemId) {
-//            R.id.map_menu_sair -> {
-//                deslogar()
-//                true
-//            }
-//            R.id.map_menu_nova_ocorrencia -> {
-//                toast("Adicionar nova ocorrência")
-//                true
-//            }
-//            R.id.map_menu_configuracoes -> {
-//                toast("Abrir configurações")
-//                true
-//            }
-//            else -> super.onOptionsItemSelected(item)
-//        }
-//
-
 }
