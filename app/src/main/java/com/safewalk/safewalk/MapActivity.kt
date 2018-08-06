@@ -2,7 +2,10 @@ package com.safewalk.safewalk
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
@@ -29,6 +32,7 @@ import java.net.URL
 import java.nio.charset.Charset
 import android.location.Criteria
 import android.support.v4.app.ActivityCompat
+import android.support.v4.content.LocalBroadcastManager
 import com.mapbox.mapboxsdk.camera.CameraPosition
 import com.mapbox.mapboxsdk.geometry.LatLng
 import org.jetbrains.anko.sdk25.coroutines.onLongClick
@@ -42,6 +46,14 @@ class MapActivity : AppCompatActivity() {
     private val user = FirebaseAuth.getInstance().currentUser
     private val mapSourceId = "ocorrencias"
     private val mapHeatLayerId = "heatmap_ocorrencias"
+    private val helpMessageIntentString = "HelpMessageString"
+    private val messageValue = "message"
+
+    private val messageReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            log.info("Received from broadcast emitter: " + intent.extras.get(messageValue))
+        }
+    }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var latitude: Double = 0.0
@@ -59,6 +71,8 @@ class MapActivity : AppCompatActivity() {
         setupButtons()
         setupLocation()
         setupMap()
+
+//        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, IntentFilter(helpMessageIntentString))
     }
 
     fun setDayStyle() {
@@ -195,7 +209,7 @@ class MapActivity : AppCompatActivity() {
         mapView.onStart()
 
         // set user name label
-        userNameText.text = user?.displayName?.toUpperCase()
+//        userNameText.text = user?.displayName?.toUpperCase()
     }
 
     override fun onBackPressed() {
@@ -216,6 +230,8 @@ class MapActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         mapView.onStop()
+        // unregister the receiver to not receive multiples notifications
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(messageReceiver)
     }
 
     override fun onLowMemory() {
