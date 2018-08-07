@@ -2,6 +2,7 @@ package com.safewalk.safewalk
 
 import android.content.Intent
 import android.support.v4.content.LocalBroadcastManager
+import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import timber.log.Timber
@@ -20,9 +21,13 @@ class HelpMessageService : FirebaseMessagingService() {
 
     override fun onMessageReceived(p0: RemoteMessage?) {
         super.onMessageReceived(p0)
-        Timber.d("$TAG message received: ${p0?.data}")
+        Log.d(TAG, "message received: ${p0!!.data!!.entries}")
+        Log.d(TAG, "message received: ${p0!!.notification!!.body}")
         localBroadcastManager.sendBroadcast(
                 Intent(helpMessageIntentString)
-                        .putExtra(messageValue, p0!!.data.getValue(messageValue)))
+                        .putExtra("notificationText", p0.notification!!.body)
+                        .putExtra("uid_from", p0.data.getValue("uid_from"))
+                        .putExtra("name", p0.data.getValue("name"))
+                        .putExtra("where", p0.data.getValue("where")))
     }
 }

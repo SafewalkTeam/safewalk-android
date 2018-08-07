@@ -2,6 +2,7 @@ package com.safewalk.safewalk
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Notification
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -32,6 +33,8 @@ import java.net.URL
 import java.nio.charset.Charset
 import android.location.Criteria
 import android.support.v4.app.ActivityCompat
+import android.support.v4.app.NotificationCompat
+import android.support.v4.app.NotificationManagerCompat
 import android.support.v4.content.LocalBroadcastManager
 import com.mapbox.mapboxsdk.camera.CameraPosition
 import com.mapbox.mapboxsdk.geometry.LatLng
@@ -49,9 +52,14 @@ class MapActivity : AppCompatActivity() {
     private val helpMessageIntentString = "HelpMessageString"
     private val messageValue = "message"
 
+    // create a receiver to handle when a new help message happens
     private val messageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            log.info("Received from broadcast emitter: " + intent.extras.get(messageValue))
+            val descriptionString = "Mensagem de socorro de ${intent.extras.get("name")} em ${intent.extras.get("where")}"
+
+            log.info("[MapActivity] messageReceiver with description: " + descriptionString)
+
+            createNotification("Socorro", descriptionString)
         }
     }
 
@@ -72,7 +80,7 @@ class MapActivity : AppCompatActivity() {
         setupLocation()
         setupMap()
 
-//        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, IntentFilter(helpMessageIntentString))
+        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, IntentFilter(helpMessageIntentString))
     }
 
     fun setDayStyle() {
@@ -93,10 +101,10 @@ class MapActivity : AppCompatActivity() {
     }
 
     fun setupMap() {
-        if (hasGeoDataOffline()) {
-            // apply data saved until get the new data
-            val jsonString = getPreferences(Context.MODE_PRIVATE).getString("geoDataJson", "")
-
+//        if (hasGeoDataOffline()) {
+//            // apply data saved until get the new data
+//            val jsonString = getPreferences(Context.MODE_PRIVATE).getString("geoDataJson", "")
+//
 //            doAsync {
 //                uiThread {
 //                    mapView.getMapAsync { mapboxMapView ->
@@ -108,7 +116,7 @@ class MapActivity : AppCompatActivity() {
 //                    }
 //                }
 //            }
-        }
+//        }
 
         // shoud check if user is online first
         doAsync {
@@ -208,12 +216,24 @@ class MapActivity : AppCompatActivity() {
         }
     }
 
+    fun createNotification(title: String, description: String) {
+        NotificationManagerCompat.from(this).notify(12,
+            NotificationCompat.Builder(this, "com.safewalk.safewalk.MapActivity")
+                    .setSmallIcon(R.drawable.ic_notifications_black_24dp)
+                    .setContentTitle(title)
+                    .setContentText(description)
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
+                    .build())
+    }
+
     override fun onStart() {
         super.onStart()
         mapView.onStart()
 
         // set user name label
-//        userNameText.text = user?.displayName?.toUpperCase()
+        userNameText.text = user?.displayName?.toUpperCase()
+
+        createNotification("Test notification", "Test description")
     }
 
     override fun onBackPressed() {
