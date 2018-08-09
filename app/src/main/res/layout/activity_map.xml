@@ -70,6 +70,7 @@
         mapbox:mapbox_cameraTargetLat="-31.736956"
         mapbox:mapbox_cameraTargetLng="-52.335372"
         mapbox:mapbox_cameraZoom="12"
+        mapbox:mapbox_uiCompass="false"
         mapbox:mapbox_styleUrl="mapbox://styles/mapbox/dark-v9">
 
     </com.mapbox.mapboxsdk.maps.MapView>

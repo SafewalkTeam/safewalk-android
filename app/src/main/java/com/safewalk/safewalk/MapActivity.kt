@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.drawable.BitmapDrawable
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -36,10 +37,16 @@ import android.support.v4.app.ActivityCompat
 import android.support.v4.app.NotificationCompat
 import android.support.v4.app.NotificationManagerCompat
 import android.support.v4.content.LocalBroadcastManager
+import com.mapbox.mapboxsdk.annotations.Icon
+import com.mapbox.mapboxsdk.annotations.IconFactory
+import com.mapbox.mapboxsdk.annotations.Marker
+import com.mapbox.mapboxsdk.annotations.MarkerOptions
 import com.mapbox.mapboxsdk.camera.CameraPosition
 import com.mapbox.mapboxsdk.geometry.LatLng
+import com.mapbox.mapboxsdk.style.layers.Layer
 import org.jetbrains.anko.sdk25.coroutines.onLongClick
 import java.io.File
+import java.util.*
 
 
 class MapActivity : AppCompatActivity() {
@@ -137,15 +144,19 @@ class MapActivity : AppCompatActivity() {
 
                     // save data
                     saveGeoDataOffline(jsonString)
+
+                    // then disable rotation
+                    mapboxMapView.uiSettings.isRotateGesturesEnabled = false
                 }
             }
         }
     }
 
     fun setupLocation() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_COARSE_LOCATION)) {
-                ActivityCompat.requestPermissions(this, Array<String>(1) { Manifest.permission.ACCESS_COARSE_LOCATION }, 12)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+                ActivityCompat.requestPermissions(this, Array<String>(1) { Manifest.permission.ACCESS_FINE_LOCATION }, Random().nextInt(100))
+                setupLocation()
             }
         } else {
             fusedLocationClient.lastLocation
@@ -179,22 +190,24 @@ class MapActivity : AppCompatActivity() {
         startActivity<LoginActivity>()
     }
 
-    fun setMyLatLon(lat: Double, lon: Double) {
-        latitude = lat
-        longitude = lon
-
+    fun setMyLatLon(lat: Double?, lon: Double?) {
         log.info("[MapActivity] (setMyLatLon) with lat: ${lat} lon: ${lon}")
 
-        mapView.getMapAsync {mapBoxMap ->
-            // center map to user location
-            log.info("[MapActivity] (setMyLatLon) shoud set user location")
+        mapView.getMapAsync { mapBoxMap ->
+            mapBoxMap.addMarker(MarkerOptions()
+                    .position(LatLng(lat!!, lon!!))
+                    .title("Seu local")
+                    .snippet("Você está em uma área perigosa."))
+
+            // then center to user location
+            mapBoxMap.cameraPosition = CameraPosition.Builder().target(LatLng(lat!!, lon!!)).build();
         }
     }
 
     fun createHeatMap(mapboxMap: MapboxMap?) {
         try {
             val heatLayer = HeatmapLayer(mapHeatLayerId, mapSourceId)
-            heatLayer.maxZoom = 20f
+            heatLayer.maxZoom = 30f
             heatLayer.sourceLayer = mapSourceId
             heatLayer.setProperties(
                     heatmapColor(
@@ -232,8 +245,6 @@ class MapActivity : AppCompatActivity() {
 
         // set user name label
         userNameText.text = user?.displayName?.toUpperCase()
-
-        createNotification("Test notification", "Test description")
     }
 
     override fun onBackPressed() {
