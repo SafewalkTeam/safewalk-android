@@ -1,17 +1,12 @@
 package com.safewalk.safewalk
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.app.Notification
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.graphics.drawable.BitmapDrawable
 import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
 import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
 import android.support.v4.content.ContextCompat
@@ -44,6 +39,8 @@ import com.mapbox.mapboxsdk.annotations.MarkerOptions
 import com.mapbox.mapboxsdk.camera.CameraPosition
 import com.mapbox.mapboxsdk.geometry.LatLng
 import com.mapbox.mapboxsdk.style.layers.Layer
+import com.markodevcic.peko.Peko
+import kotlinx.coroutines.experimental.launch
 import org.jetbrains.anko.sdk25.coroutines.onLongClick
 import java.io.File
 import java.util.*
@@ -84,7 +81,7 @@ class MapActivity : AppCompatActivity() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         setupButtons()
-        setupLocation()
+        setupGpsPermission()
         setupMap()
 
         LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, IntentFilter(helpMessageIntentString))
@@ -105,6 +102,27 @@ class MapActivity : AppCompatActivity() {
 
         //
         configButton.onClick { /* startActivity<SettingsActivity>() */ singOut() }
+    }
+
+    fun setupGpsPermission() {
+        launch {
+            val permissionResult = Peko.requestPermissionsAsync(this@MapActivity, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            val (grantedPermissions) = permissionResult.await()
+
+            if (Manifest.permission.ACCESS_FINE_LOCATION in grantedPermissions) {
+                try {
+                    fusedLocationClient.lastLocation
+                            .addOnSuccessListener { location: Location? ->
+                                // Got last known location. In some rare situations this can be null.
+                                setMyLatLon(location!!.latitude, location!!.longitude)
+                            }
+                } catch (ex: SecurityException) {
+                    longToast("Você não permitiu o acesso a sua localização.").show()
+                }
+            } else {
+                toast("Sem permissão de acesso a localização")
+            }
+        }
     }
 
     fun setupMap() {
