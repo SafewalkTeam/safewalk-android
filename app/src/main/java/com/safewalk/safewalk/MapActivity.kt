@@ -1,17 +1,12 @@
 package com.safewalk.safewalk
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.app.Notification
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.graphics.drawable.BitmapDrawable
 import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
 import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
 import android.support.v4.content.ContextCompat
@@ -29,23 +24,18 @@ import com.mapbox.mapboxsdk.style.layers.HeatmapLayer
 import com.mapbox.mapboxsdk.style.layers.PropertyFactory.*
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource
 import org.jetbrains.anko.*
-import org.jetbrains.anko.custom.async
 import java.net.URL
 import java.nio.charset.Charset
-import android.location.Criteria
 import android.support.v4.app.ActivityCompat
 import android.support.v4.app.NotificationCompat
 import android.support.v4.app.NotificationManagerCompat
 import android.support.v4.content.LocalBroadcastManager
-import com.mapbox.mapboxsdk.annotations.Icon
-import com.mapbox.mapboxsdk.annotations.IconFactory
-import com.mapbox.mapboxsdk.annotations.Marker
 import com.mapbox.mapboxsdk.annotations.MarkerOptions
 import com.mapbox.mapboxsdk.camera.CameraPosition
 import com.mapbox.mapboxsdk.geometry.LatLng
-import com.mapbox.mapboxsdk.style.layers.Layer
+import com.markodevcic.peko.Peko
+import kotlinx.coroutines.experimental.launch
 import org.jetbrains.anko.sdk25.coroutines.onLongClick
-import java.io.File
 import java.util.*
 
 
@@ -63,8 +53,6 @@ class MapActivity : AppCompatActivity() {
     private val messageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val descriptionString = "Mensagem de socorro de ${intent.extras.get("name")} em ${intent.extras.get("where")}"
-
-            log.info("[MapActivity] messageReceiver with description: " + descriptionString)
 
             createNotification("Socorro", descriptionString)
         }
@@ -84,7 +72,7 @@ class MapActivity : AppCompatActivity() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         setupButtons()
-        setupLocation()
+        setupGpsPermission()
         setupMap()
 
         LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, IntentFilter(helpMessageIntentString))
@@ -107,24 +95,28 @@ class MapActivity : AppCompatActivity() {
         configButton.onClick { /* startActivity<SettingsActivity>() */ singOut() }
     }
 
-    fun setupMap() {
-//        if (hasGeoDataOffline()) {
-//            // apply data saved until get the new data
-//            val jsonString = getPreferences(Context.MODE_PRIVATE).getString("geoDataJson", "")
-//
-//            doAsync {
-//                uiThread {
-//                    mapView.getMapAsync { mapboxMapView ->
-//                        // apply data to map
-//                        mapboxMapView.addSource(GeoJsonSource(mapSourceId, jsonString))
-//
-//                        // create heat map
-//                        createHeatMap(mapboxMapView)
-//                    }
-//                }
-//            }
-//        }
+    fun setupGpsPermission() {
+        launch {
+            val permissionResult = Peko.requestPermissionsAsync(this@MapActivity, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            val (grantedPermissions) = permissionResult.await()
 
+            if (Manifest.permission.ACCESS_FINE_LOCATION in grantedPermissions) {
+                try {
+                    fusedLocationClient.lastLocation
+                            .addOnSuccessListener { location: Location? ->
+                                // Got last known location. In some rare situations this can be null.
+                                setMyLatLon(location!!.latitude, location!!.longitude)
+                            }
+                } catch (ex: SecurityException) {
+                    longToast("Você não permitiu o acesso a sua localização.").show()
+                }
+            } else {
+                toast("Sem permissão de acesso a localização")
+            }
+        }
+    }
+
+    fun setupMap() {
         // shoud check if user is online first
         doAsync {
             // get data from server ex: https://safewalk.com/api/user=<user id>&city=<city name>
@@ -152,25 +144,6 @@ class MapActivity : AppCompatActivity() {
         }
     }
 
-    fun setupLocation() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
-                ActivityCompat.requestPermissions(this, Array<String>(1) { Manifest.permission.ACCESS_FINE_LOCATION }, Random().nextInt(100))
-                setupLocation()
-            }
-        } else {
-            fusedLocationClient.lastLocation
-                    .addOnSuccessListener { location: Location? ->
-                        // Got last known location. In some rare situations this can be null.
-                        setMyLatLon(location!!.latitude, location!!.longitude)
-                    }
-        }
-    }
-
-    fun hasGeoDataOffline(): Boolean {
-        return getPreferences(Context.MODE_PRIVATE).contains("geoDataJson")
-    }
-
     fun saveGeoDataOffline(geoDataJson: String) {
         getPreferences(Context.MODE_PRIVATE).edit()
                 .putString("geoDataJson", geoDataJson)
@@ -191,8 +164,6 @@ class MapActivity : AppCompatActivity() {
     }
 
     fun setMyLatLon(lat: Double?, lon: Double?) {
-        log.info("[MapActivity] (setMyLatLon) with lat: ${lat} lon: ${lon}")
-
         mapView.getMapAsync { mapBoxMap ->
             mapBoxMap.addMarker(MarkerOptions()
                     .position(LatLng(lat!!, lon!!))
