@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.location.Location
+import android.media.MediaRecorder
 import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
 import android.support.v4.content.ContextCompat
@@ -30,6 +31,8 @@ import android.support.v4.app.ActivityCompat
 import android.support.v4.app.NotificationCompat
 import android.support.v4.app.NotificationManagerCompat
 import android.support.v4.content.LocalBroadcastManager
+import android.view.MotionEvent
+import android.view.View
 import com.mapbox.mapboxsdk.annotations.MarkerOptions
 import com.mapbox.mapboxsdk.camera.CameraPosition
 import com.mapbox.mapboxsdk.geometry.LatLng
@@ -59,6 +62,7 @@ class MapActivity : AppCompatActivity() {
     }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var recorder: MediaRecorder
     private var latitude: Double = 0.0
     private var longitude: Double = 0.0
 
@@ -88,8 +92,22 @@ class MapActivity : AppCompatActivity() {
 
     fun setupButtons() {
         // Configura a função para executar quando o usuário pedir socorro
-        alertButton.onClick { callHelp() }
-        alertButton.onLongClick { callHelpWithVoiceMessage() }
+//        alertButton.onClick { callHelp() }
+//        alertButton.onLongClick { callHelpWithVoiceMessage() }
+        alertButton.setOnTouchListener(View.OnTouchListener { _, p1 ->
+            when(p1?.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    alertButton.text = "gravando"
+                    callHelpWithVoiceMessage()
+                    return@OnTouchListener true
+                }
+                MotionEvent.ACTION_UP -> {
+                    stopRecordingAudio()
+                    sendEveryoneWithAudio()
+                }
+            }
+            false
+        })
 
         //
         configButton.onClick { /* startActivity<SettingsActivity>() */ singOut() }
@@ -155,7 +173,29 @@ class MapActivity : AppCompatActivity() {
     }
 
     fun callHelpWithVoiceMessage() {
-        snackbar(findViewById(android.R.id.content), "Ação de socorro com voz")
+        launch {
+            val permission = Peko.requestPermissionsAsync(this@MapActivity, Manifest.permission.RECORD_AUDIO)
+            val (grantedPermissions) = permission.await()
+
+            if (Manifest.permission.RECORD_AUDIO in grantedPermissions) {
+                recordAudio()
+            }
+        }
+    }
+
+    fun recordAudio() {
+        recorder = MediaRecorder()
+        recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+        recorder.start()
+    }
+
+    fun stopRecordingAudio() {
+        recorder.stop()
+    }
+
+    fun sendEveryoneWithAudio() {
+
     }
 
     fun singOut() {
